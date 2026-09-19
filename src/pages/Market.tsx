@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
-import { ArrowLeft, ShoppingBag, Search, Plus, Camera, X, ShoppingCart, CheckCircle } from "lucide-react";
+import { ArrowLeft, ShoppingBag, Search, Plus, Camera, X, ShoppingCart, CheckCircle, SlidersHorizontal, RotateCcw } from "lucide-react";
 import { marketApi, cartApi } from "../services/api";
 import { useAuthStore } from "../store/authStore";
 
@@ -20,6 +20,17 @@ export default function MarketPage() {
   const [addingToCartId, setAddingToCartId] = useState<number | null>(null);
   const categories = ["数码产品", "学习用品", "生活用品", "体育器材", "其他"];
   const conditions = ["全新", "几乎全新", "轻微使用", "明显使用"];
+  const sortOptions = [
+    { value: "newest", label: "最新发布" },
+    { value: "price-asc", label: "价格从低到高" },
+    { value: "price-desc", label: "价格从高到低" },
+  ];
+  const [selectedCategory, setSelectedCategory] = useState("");
+  const [selectedCondition, setSelectedCondition] = useState("");
+  const [minPrice, setMinPrice] = useState("");
+  const [maxPrice, setMaxPrice] = useState("");
+  const [sort, setSort] = useState("newest");
+  const [showFilter, setShowFilter] = useState(false);
 
   useEffect(() => {
     loadProducts();
@@ -30,21 +41,18 @@ export default function MarketPage() {
   }, []);
 
   useEffect(() => {
-    if (searchQuery.trim() === "") {
-      setFilteredProducts(products);
-    } else {
-      const query = searchQuery.toLowerCase();
-      setFilteredProducts(products.filter((p: any) => 
-        p.title.toLowerCase().includes(query) || 
-        p.description.toLowerCase().includes(query) ||
-        p.category.toLowerCase().includes(query)
-      ));
-    }
-  }, [searchQuery, products]);
+    loadProducts();
+  }, [selectedCategory, selectedCondition, minPrice, maxPrice, sort]);
 
   const loadProducts = async () => {
     try {
-      const params = user ? { userId: user.id } as any : undefined;
+      const params: any = { limit: 50, sort };
+      if (user) params.userId = user.id;
+      if (searchQuery.trim()) params.search = searchQuery.trim();
+      if (selectedCategory) params.category = selectedCategory;
+      if (selectedCondition) params.condition = selectedCondition;
+      if (minPrice) params.minPrice = Number(minPrice);
+      if (maxPrice) params.maxPrice = Number(maxPrice);
       const response = await marketApi.getAll(params);
       if (response.data.success) {
         setProducts(response.data.data);
@@ -54,6 +62,21 @@ export default function MarketPage() {
       console.error(err);
     }
   };
+
+  const handleSearch = (value: string) => {
+    setSearchQuery(value);
+    loadProducts();
+  };
+
+  const resetFilters = () => {
+    setSelectedCategory("");
+    setSelectedCondition("");
+    setMinPrice("");
+    setMaxPrice("");
+    setSort("newest");
+  };
+
+  const hasActiveFilter = selectedCategory || selectedCondition || minPrice || maxPrice || sort !== "newest";
 
   const handleImageSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files;
@@ -131,15 +154,62 @@ export default function MarketPage() {
             type="text" 
             placeholder="搜索商品名称、描述、类别..." 
             value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            className="w-full pl-10 pr-4 py-3 bg-white rounded-xl shadow-sm border border-gray-100 focus:outline-none focus:ring-2 focus:ring-primary-500" 
+            onChange={(e) => handleSearch(e.target.value)}
+            className="w-full pl-10 pr-10 py-3 bg-white rounded-xl shadow-sm border border-gray-100 focus:outline-none focus:ring-2 focus:ring-primary-500" 
           />
           {searchQuery && (
-            <button onClick={() => setSearchQuery("")} className="absolute right-3 top-1/2 -translate-y-1/2">
+            <button onClick={() => handleSearch("")} className="absolute right-12 top-1/2 -translate-y-1/2">
               <X className="w-5 h-5 text-gray-400" />
             </button>
           )}
+          <button onClick={() => setShowFilter(!showFilter)} className="absolute right-3 top-1/2 -translate-y-1/2">
+            <SlidersHorizontal className={`w-5 h-5 ${hasActiveFilter ? "text-primary-500" : "text-gray-400"}`} />
+          </button>
         </div>
+        {showFilter && (
+          <div className="bg-white rounded-2xl shadow-sm p-4 mb-4 space-y-4">
+            <div className="flex items-center justify-between">
+              <h3 className="font-semibold text-gray-800">筛选</h3>
+              <button onClick={resetFilters} className="text-sm text-primary-500 flex items-center gap-1">
+                <RotateCcw className="w-4 h-4" /> 重置
+              </button>
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">分类</label>
+              <div className="flex flex-wrap gap-2">
+                <button onClick={() => setSelectedCategory("")} className={`px-3 py-1.5 rounded-full text-sm transition-colors ${selectedCategory === "" ? "bg-primary-500 text-white" : "bg-gray-100 text-gray-600"}`}>全部</button>
+                {categories.map(cat => (
+                  <button key={cat} onClick={() => setSelectedCategory(cat)} className={`px-3 py-1.5 rounded-full text-sm transition-colors ${selectedCategory === cat ? "bg-primary-500 text-white" : "bg-gray-100 text-gray-600"}`}>{cat}</button>
+                ))}
+              </div>
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">成色</label>
+              <div className="flex flex-wrap gap-2">
+                <button onClick={() => setSelectedCondition("")} className={`px-3 py-1.5 rounded-full text-sm transition-colors ${selectedCondition === "" ? "bg-primary-500 text-white" : "bg-gray-100 text-gray-600"}`}>全部</button>
+                {conditions.map(c => (
+                  <button key={c} onClick={() => setSelectedCondition(c)} className={`px-3 py-1.5 rounded-full text-sm transition-colors ${selectedCondition === c ? "bg-primary-500 text-white" : "bg-gray-100 text-gray-600"}`}>{c}</button>
+                ))}
+              </div>
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">价格区间</label>
+              <div className="flex items-center gap-2">
+                <input type="number" placeholder="最低价" value={minPrice} onChange={(e) => setMinPrice(e.target.value)} className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent" />
+                <span className="text-gray-400">-</span>
+                <input type="number" placeholder="最高价" value={maxPrice} onChange={(e) => setMaxPrice(e.target.value)} className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent" />
+              </div>
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">排序</label>
+              <div className="flex flex-wrap gap-2">
+                {sortOptions.map(opt => (
+                  <button key={opt.value} onClick={() => setSort(opt.value)} className={`px-3 py-1.5 rounded-full text-sm transition-colors ${sort === opt.value ? "bg-primary-500 text-white" : "bg-gray-100 text-gray-600"}`}>{opt.label}</button>
+                ))}
+              </div>
+            </div>
+          </div>
+        )}
         {!showForm && user?.role !== "admin" && (
           <button onClick={() => setShowForm(true)} className="w-full py-3 bg-primary-500 text-white font-medium rounded-xl flex items-center justify-center gap-2 mb-6">
             <Plus className="w-5 h-5" /> 发布商品

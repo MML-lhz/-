@@ -3,6 +3,7 @@ import cors from "cors";
 import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
 import path from "path";
+import fs from "fs";
 import { fileURLToPath } from "url";
 import { Low } from "lowdb";
 import { JSONFile } from "lowdb/node";
@@ -95,13 +96,75 @@ app.get("/api/auth/me", authenticateToken, async (req, res) => {
     if (!user) {
         return res.status(404).json({ success: false, message: "User not found" });
     }
-    res.json({ success: true, data: { id: user.id, username: user.username, role: user.role } });
+    res.json({
+        success: true,
+        data: {
+            id: user.id,
+            username: user.username,
+            role: user.role,
+            avatar: user.avatar || "",
+            phone: user.phone || "",
+            email: user.email || "",
+            bio: user.bio || ""
+        }
+    });
+});
+
+// Update user profile
+app.put("/api/user/profile", authenticateToken, async (req, res) => {
+    const { avatar, phone, email, bio } = req.body;
+    await db.read();
+    const user = db.data.users.find(u => u.id === req.user.userId);
+    if (!user) {
+        return res.status(404).json({ success: false, message: "User not found" });
+    }
+    if (avatar !== undefined) user.avatar = avatar;
+    if (phone !== undefined) user.phone = phone;
+    if (email !== undefined) user.email = email;
+    if (bio !== undefined) user.bio = bio;
+    user.updatedAt = new Date().toISOString();
+    await db.write();
+    res.json({
+        success: true,
+        data: {
+            id: user.id,
+            username: user.username,
+            role: user.role,
+            avatar: user.avatar || "",
+            phone: user.phone || "",
+            email: user.email || "",
+            bio: user.bio || ""
+        }
+    });
+});
+
+// Change password
+app.put("/api/user/password", authenticateToken, async (req, res) => {
+    const { oldPassword, newPassword } = req.body;
+    if (!oldPassword || !newPassword) {
+        return res.status(400).json({ success: false, message: "Old and new password required" });
+    }
+    if (newPassword.length < 6) {
+        return res.status(400).json({ success: false, message: "New password must be at least 6 characters" });
+    }
+    await db.read();
+    const user = db.data.users.find(u => u.id === req.user.userId);
+    if (!user) {
+        return res.status(404).json({ success: false, message: "User not found" });
+    }
+    if (!bcrypt.compareSync(oldPassword, user.password)) {
+        return res.status(400).json({ success: false, message: "Old password is incorrect" });
+    }
+    user.password = bcrypt.hashSync(newPassword, 8);
+    user.updatedAt = new Date().toISOString();
+    await db.write();
+    res.json({ success: true, message: "Password updated successfully" });
 });
 
 app.get("/api/market", async (req, res) => {
     await db.read();
     const page = parseInt(req.query.page) || 1;
-    const limit = parseInt(req.query.limit) || 10;
+    const limit = parseInt(req.query.limit) || 50;
     const offset = (page - 1) * limit;
     let filtered = db.data.market.filter(item => item.status === "available");
     const requesterId = req.query.userId ? Number(req.query.userId) : null;
@@ -114,6 +177,47 @@ app.get("/api/market", async (req, res) => {
                 filtered = filtered.filter(item => item.userRole === "student" || !item.userRole);
             }
         }
+    }
+    // 搜索关键词
+    const search = req.query.search;
+    if (search) {
+        const q = String(search).toLowerCase();
+        filtered = filtered.filter(item =>
+            item.title.toLowerCase().includes(q) ||
+            (item.description && item.description.toLowerCase().includes(q)) ||
+            (item.category && item.category.toLowerCase().includes(q))
+        );
+    }
+    // 分类筛选
+    const category = req.query.category;
+    if (category) {
+        filtered = filtered.filter(item => item.category === category);
+    }
+    // 成色筛选
+    const condition = req.query.condition;
+    if (condition) {
+        filtered = filtered.filter(item => item.condition === condition);
+    }
+    // 价格区间
+    const minPrice = req.query.minPrice ? Number(req.query.minPrice) : null;
+    const maxPrice = req.query.maxPrice ? Number(req.query.maxPrice) : null;
+    if (minPrice !== null) {
+        filtered = filtered.filter(item => item.price >= minPrice);
+    }
+    if (maxPrice !== null) {
+        filtered = filtered.filter(item => item.price <= maxPrice);
+    }
+    // 排序
+    const sort = req.query.sort;
+    if (sort === "price-asc") {
+        filtered = [...filtered].sort((a, b) => a.price - b.price);
+    } else if (sort === "price-desc") {
+        filtered = [...filtered].sort((a, b) => b.price - a.price);
+    } else {
+        // 默认按创建时间倒序（最新）
+        filtered = [...filtered].sort((a, b) =>
+            new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+        );
     }
     const paginated = filtered.slice(offset, offset + limit);
     res.json({ success: true, data: paginated, total: filtered.length, page, limit });
@@ -563,7 +667,11 @@ app.delete("/api/announcements/:id", authenticateToken, async (req, res) => {
     res.json({ success: true });
 });
 
-app.use(express.static(path.join(__dirname, "../../dist")));
+const distPath = path.join(__dirname, "../dist");
+
+if (fs.existsSync(distPath)) {
+    app.use(express.static(distPath));
+}
 
 // Handle API 404
 app.use("/api", (req, res) => {
@@ -572,7 +680,12 @@ app.use("/api", (req, res) => {
 
 // Handle non-API routes - serve frontend
 app.use((req, res) => {
-    res.sendFile(path.join(__dirname, "../../dist", "index.html"));
+    const indexPath = path.join(distPath, "index.html");
+    if (fs.existsSync(indexPath)) {
+        res.sendFile(indexPath);
+    } else {
+        res.status(404).send("Frontend not built yet. Run 'npm run build' to create dist/, or access via Vite dev server (port 5173).");
+    }
 });
 
 app.listen(PORT, '0.0.0.0', () => {

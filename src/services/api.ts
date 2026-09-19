@@ -60,13 +60,18 @@ export const feedbackApi = {
 
 export const userApi = {
   getStats: () => api.get<{ success: boolean; data: { posts: number; purchases: number; feedbacks: number; lostFound: number; claims: number } }>('/user/stats'),
+  getMe: () => api.get<{ success: boolean; data: { id: number; username: string; role: string; avatar: string; phone: string; email: string; bio: string } }>('/auth/me'),
+  updateProfile: (data: { avatar?: string; phone?: string; email?: string; bio?: string }) =>
+    api.put<{ success: boolean; data: { id: number; username: string; role: string; avatar: string; phone: string; email: string; bio: string } }>('/user/profile', data),
+  updatePassword: (data: { oldPassword: string; newPassword: string }) =>
+    api.put<{ success: boolean; message: string }>('/user/password', data),
 };
 
 export const marketApi = {
   publish: (data: { title: string; description: string; price: number; images: string[]; category: string; condition: string }) =>
     api.post<{ success: boolean; data: Product }>('/market', data),
   
-  getAll: (params?: { page?: number; limit?: number; category?: string; keyword?: string; condition?: string }) =>
+  getAll: (params?: { page?: number; limit?: number; search?: string; category?: string; condition?: string; minPrice?: number; maxPrice?: number; sort?: string }) =>
     api.get<PaginatedResponse<Product>>('/market', { params }),
   
   getById: (id: number) => api.get<{ success: boolean; data: Product }>(`/market/${id}`),

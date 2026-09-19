@@ -1,8 +1,8 @@
 import { useState, useEffect } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
-import { MessageSquare, ShoppingBag, RotateCcw, User, Bell, Search, X } from 'lucide-react';
+import { MessageSquare, ShoppingBag, RotateCcw, User, Bell, Search, X, ShoppingCart } from 'lucide-react';
 import { useAuthStore } from '../store/authStore';
-import { marketApi, lostFoundApi, announcementApi } from '../services/api';
+import { marketApi, lostFoundApi, announcementApi, cartApi } from '../services/api';
 
 export default function Home() {
   const navigate = useNavigate();
@@ -14,6 +14,7 @@ export default function Home() {
   const [filteredProducts, setFilteredProducts] = useState<any[]>([]);
   const [notificationCount, setNotificationCount] = useState(0);
   const [activeLostCount, setActiveLostCount] = useState(0);
+  const [cartCount, setCartCount] = useState(0);
   const [announcements, setAnnouncements] = useState<any[]>([]);
 
   const quickActions = [
@@ -27,6 +28,7 @@ export default function Home() {
     loadProducts();
     loadNotifications();
     loadAnnouncements();
+    loadCart();
   }, [user]);
 
   useEffect(() => {
@@ -61,12 +63,14 @@ export default function Home() {
     try {
       const response = await lostFoundApi.getAll();
       if (response.data.success) {
-        const claimedItems = response.data.data.filter((item: any) => 
+        const claimedItems = response.data.data.filter((item: any) =>
           item.status === 'claimed' && item.userId === user?.id
         );
-        setNotificationCount(claimedItems.length);
-        
-        const activeItems = response.data.data.filter((item: any) => 
+        // 头像红点：只在认领数超过已查看数时显示
+        const dismissed = parseInt(sessionStorage.getItem('avatarDismissedCount') || '0', 10);
+        setNotificationCount(Math.max(0, claimedItems.length - dismissed));
+
+        const activeItems = response.data.data.filter((item: any) =>
           item.status === 'active'
         );
         setActiveLostCount(activeItems.length);
@@ -76,11 +80,31 @@ export default function Home() {
     }
   };
 
+  // 点击头像：把当前认领数记为已查看，红点消失
+  const handleAvatarClick = () => {
+    const dismissed = parseInt(sessionStorage.getItem('avatarDismissedCount') || '0', 10);
+    sessionStorage.setItem('avatarDismissedCount', String(dismissed + notificationCount));
+    setNotificationCount(0);
+    navigate('/profile');
+  };
+
   const loadAnnouncements = async () => {
     try {
       const response = await announcementApi.getAll();
       if (response.data.success) {
         setAnnouncements(response.data.data);
+      }
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
+  const loadCart = async () => {
+    if (!user) return;
+    try {
+      const response = await cartApi.getAll();
+      if (response.data.success) {
+        setCartCount(response.data.data.length);
       }
     } catch (err) {
       console.error(err);
@@ -142,11 +166,15 @@ export default function Home() {
               <p className="text-xs text-gray-500">Campus Service</p>
             </div>
           </div>
-          <button onClick={() => navigate('/profile')} className="relative">
+          <button onClick={handleAvatarClick} className="relative">
             <div className="w-10 h-10 bg-gray-200 rounded-full flex items-center justify-center">
               <User className="w-5 h-5 text-gray-600" />
             </div>
-            <span className="absolute -top-1 -right-1 w-4 h-4 bg-red-500 rounded-full text-xs text-white flex items-center justify-center">3</span>
+            {notificationCount > 0 && (
+              <span className="absolute -top-1 -right-1 w-4 h-4 bg-red-500 rounded-full text-xs text-white flex items-center justify-center">
+                {notificationCount}
+              </span>
+            )}
           </button>
         </div>
       </header>
@@ -332,39 +360,48 @@ export default function Home() {
         </div>
       </main>
 
-      <nav className="fixed bottom-0 left-0 right-0 bg-white border-t border-gray-100 px-4 py-2">
-        <div className="max-w-lg mx-auto flex justify-around">
-          <button onClick={() => navigate('/')} className="flex flex-col items-center gap-1 text-primary-500">
-            <div className="w-10 h-10 bg-primary-100 rounded-xl flex items-center justify-center">
-              <span className="text-lg font-bold">校</span>
+      <nav className="fixed bottom-0 left-0 right-0 bg-white border-t border-gray-100 px-2 py-2">
+        <div className="max-w-lg mx-auto flex justify-around gap-1">
+          <button onClick={() => navigate('/')} className="flex-1 flex flex-col items-center gap-0.5 text-primary-500 min-w-0">
+            <div className="w-8 h-8 bg-primary-100 rounded-lg flex items-center justify-center">
+              <span className="text-sm font-bold">校</span>
             </div>
-            <span className="text-xs font-medium">首页</span>
+            <span className="text-[10px] font-medium truncate">首页</span>
           </button>
-          <button onClick={() => navigate('/feedback')} className="flex flex-col items-center gap-1 text-gray-500 hover:text-primary-500">
-            <MessageSquare className="w-6 h-6" />
-            <span className="text-xs">反馈</span>
+          <button onClick={() => navigate('/feedback')} className="flex-1 flex flex-col items-center gap-0.5 text-gray-500 hover:text-primary-500 min-w-0">
+            <MessageSquare className="w-5 h-5" />
+            <span className="text-[10px] truncate">反馈</span>
           </button>
-          <button onClick={() => navigate('/market')} className="flex flex-col items-center gap-1 text-gray-500 hover:text-primary-500">
-            <ShoppingBag className="w-6 h-6" />
-            <span className="text-xs">交易</span>
+          <button onClick={() => navigate('/market')} className="flex-1 flex flex-col items-center gap-0.5 text-gray-500 hover:text-primary-500 min-w-0">
+            <ShoppingBag className="w-5 h-5" />
+            <span className="text-[10px] truncate">交易</span>
           </button>
-          <button onClick={() => navigate('/lost-found')} className="flex flex-col items-center gap-1 text-gray-500 hover:text-primary-500 relative">
-            <RotateCcw className="w-6 h-6" />
+          <button onClick={() => navigate('/lost-found')} className="flex-1 flex flex-col items-center gap-0.5 text-gray-500 hover:text-primary-500 relative min-w-0">
+            <RotateCcw className="w-5 h-5" />
             {activeLostCount > 0 && (
-              <span className="absolute -top-1 -right-1 w-4 h-4 bg-orange-500 rounded-full text-xs text-white flex items-center justify-center">
+              <span className="absolute -top-1 -right-1 w-4 h-4 bg-orange-500 rounded-full text-[10px] text-white flex items-center justify-center">
                 {activeLostCount}
               </span>
             )}
-            <span className="text-xs">归还</span>
+            <span className="text-[10px] truncate">归还</span>
           </button>
-          <button onClick={() => navigate('/profile')} className="flex flex-col items-center gap-1 text-gray-500 hover:text-primary-500 relative">
-            <User className="w-6 h-6" />
+          <button onClick={() => navigate('/cart')} className="flex-1 flex flex-col items-center gap-0.5 text-gray-500 hover:text-primary-500 relative min-w-0">
+            <ShoppingCart className="w-5 h-5" />
+            {cartCount > 0 && (
+              <span className="absolute -top-1 -right-1 w-4 h-4 bg-red-500 rounded-full text-[10px] text-white flex items-center justify-center">
+                {cartCount}
+              </span>
+            )}
+            <span className="text-[10px] truncate">购物车</span>
+          </button>
+          <button onClick={() => navigate('/profile')} className="flex-1 flex flex-col items-center gap-0.5 text-gray-500 hover:text-primary-500 relative min-w-0">
+            <User className="w-5 h-5" />
             {notificationCount > 0 && (
-              <span className="absolute -top-1 -right-1 w-4 h-4 bg-red-500 rounded-full text-xs text-white flex items-center justify-center">
+              <span className="absolute -top-1 -right-1 w-4 h-4 bg-red-500 rounded-full text-[10px] text-white flex items-center justify-center">
                 {notificationCount}
               </span>
             )}
-            <span className="text-xs">我的</span>
+            <span className="text-[10px] truncate">我的</span>
           </button>
         </div>
       </nav>
