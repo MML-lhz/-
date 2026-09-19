@@ -1,0 +1,50 @@
+{
+  "name": "校园服务平台",
+  "short_name": "校园服务",
+  "description": "校园服务App - 问题反馈、二手交易、物品归还",
+  "start_url": "/",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#ffffff",
+  "theme_color": "#4F46E5",
+  "icons": [
+    {
+      "src": "/favicon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "/favicon.svg",
+      "sizes": "512x512",
+      "type": "image/svg+xml"
+    }
+  ],
+  "categories": ["education", "utilities"],
+  "lang": "zh-CN",
+  "prefer_related_applications": false,
+  "related_applications": [],
+  "shortcuts": [
+    {
+      "name": "问题反馈",
+      "short_name": "反馈",
+      "description": "提交问题反馈",
+      "url": "/feedback",
+      "icons": [{ "src": "/favicon.svg", "sizes": "96x96" }]
+    },
+    {
+      "name": "二手交易",
+      "short_name": "交易",
+      "description": "浏览二手商品",
+      "url": "/market",
+      "icons": [{ "src": "/favicon.svg", "sizes": "96x96" }]
+    },
+    {
+      "name": "物品归还",
+      "short_name": "归还",
+      "description": "失物招领",
+      "url": "/lost-found",
+      "icons": [{ "src": "/favicon.svg", "sizes": "96x96" }]
+    }
+  ]
+}
