@@ -42,3 +42,6 @@ __pycache__/
 .env.*
 !.env.example
 api/db.local.json
+
+# Corrupted / generated TS file (70MB of U+FFFD, not real source — kept server.js as canonical)
+api/server.ts
